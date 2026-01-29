@@ -192,7 +192,7 @@ class TerminalPainter {
         color: color,
         bold: cellFlags & CellFlags.bold != 0,
         italic: cellFlags & CellFlags.italic != 0,
-        underline: cellFlags & CellFlags.underline != 0,
+        underline: false,
       );
 
       // Flutter does not draw an underline below a space which is not between

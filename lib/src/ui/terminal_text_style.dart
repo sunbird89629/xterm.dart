@@ -67,7 +67,7 @@ class TerminalStyle {
       backgroundColor: backgroundColor,
       fontWeight: bold ? FontWeight.bold : FontWeight.normal,
       fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-      decoration: underline ? TextDecoration.underline : TextDecoration.none,
+      decoration: underline ? TextDecoration.underline : null,
     );
   }
 
