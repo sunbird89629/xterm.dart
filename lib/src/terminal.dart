@@ -63,6 +63,11 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   /// escape sequence.
   void Function(String code, List<String> args)? onPrivateOSC;
 
+  /// Called when the terminal receives a full-screen erase command (ED 2,
+  /// i.e. `ESC[2J`). Useful for clearing any graphics overlaid on the
+  /// terminal widget.
+  void Function()? onEraseDisplay;
+
   /// Flag to toggle os specific behaviors.
   final TerminalTargetPlatform platform;
 
@@ -81,6 +86,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
     this.inputHandler = defaultInputHandler,
     this.mouseHandler = defaultMouseHandler,
     this.onPrivateOSC,
+    this.onEraseDisplay,
     this.reflowEnabled = true,
     this.wordSeparators,
   });
@@ -584,6 +590,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   @override
   void eraseDisplay() {
     _buffer.eraseDisplay();
+    onEraseDisplay?.call();
   }
 
   @override
