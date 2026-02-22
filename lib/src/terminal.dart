@@ -68,6 +68,11 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   /// terminal widget.
   void Function()? onEraseDisplay;
 
+  /// Called when a visible character is written to a cell. Receives the
+  /// cursor column and row at the time of the write. Useful for detecting
+  /// when a region previously occupied by a graphics overlay is overwritten.
+  void Function(int col, int row)? onWriteChar;
+
   /// Flag to toggle os specific behaviors.
   final TerminalTargetPlatform platform;
 
@@ -392,6 +397,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   @override
   void writeChar(int char) {
     _precedingCodepoint = char;
+    onWriteChar?.call(_buffer.cursorX, _buffer.cursorY);
     _buffer.writeChar(char);
   }
 
