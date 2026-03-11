@@ -162,6 +162,8 @@ class TerminalViewState extends State<TerminalView> {
 
   late ScrollController _scrollController;
 
+  ScrollController get scrollController => _scrollController;
+
   RenderTerminal get renderTerminal => _viewportKey.currentContext!.findRenderObject() as RenderTerminal;
 
   @override

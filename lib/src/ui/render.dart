@@ -34,21 +34,21 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     required bool alwaysShowCursor,
     EditableRectCallback? onEditableRect,
     String? composingText,
-  })  : _terminal = terminal,
-        _controller = controller,
-        _offset = offset,
-        _padding = padding,
-        _autoResize = autoResize,
-        _focusNode = focusNode,
-        _cursorType = cursorType,
-        _alwaysShowCursor = alwaysShowCursor,
-        _onEditableRect = onEditableRect,
-        _composingText = composingText,
-        _painter = TerminalPainter(
-          theme: theme,
-          textStyle: textStyle,
-          textScaler: textScaler,
-        );
+  }) : _terminal = terminal,
+       _controller = controller,
+       _offset = offset,
+       _padding = padding,
+       _autoResize = autoResize,
+       _focusNode = focusNode,
+       _cursorType = cursorType,
+       _alwaysShowCursor = alwaysShowCursor,
+       _onEditableRect = onEditableRect,
+       _composingText = composingText,
+       _painter = TerminalPainter(
+         theme: theme,
+         textStyle: textStyle,
+         textScaler: textScaler,
+       );
 
   Terminal _terminal;
   set terminal(Terminal terminal) {
@@ -277,6 +277,36 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     }
   }
 
+  /// Selects characters in the terminal that starts from a fixed logical [fromPosition]
+  /// to a physical screen [to]. This is useful when the screen is scrolling but
+  /// the selection origin must remain fixed.
+  void selectCharactersFromOffset(CellOffset fromPosition, [Offset? to]) {
+    if (to == null) {
+      _controller.setSelection(
+        _terminal.buffer.createAnchorFromOffset(fromPosition),
+        _terminal.buffer.createAnchorFromOffset(
+          CellOffset(fromPosition.x + 1, fromPosition.y),
+        ),
+      );
+    } else {
+      final toPosition = getCellOffset(to);
+      CellOffset begin, end;
+
+      if (toPosition.isBefore(fromPosition)) {
+        begin = toPosition;
+        end = CellOffset(fromPosition.x + 1, fromPosition.y);
+      } else {
+        begin = fromPosition;
+        end = CellOffset(toPosition.x + 1, toPosition.y);
+      }
+
+      _controller.setSelection(
+        _terminal.buffer.createAnchorFromOffset(begin),
+        _terminal.buffer.createAnchorFromOffset(end),
+      );
+    }
+  }
+
   /// Selects characters in the terminal that starts from [from] to [to]. At
   /// least one cell is selected even if [from] and [to] are same.
   void selectCharacters(Offset from, [Offset? to]) {
@@ -285,7 +315,8 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       _controller.setSelection(
         _terminal.buffer.createAnchorFromOffset(fromPosition),
         _terminal.buffer.createAnchorFromOffset(
-            CellOffset(fromPosition.x + 1, fromPosition.y)),
+          CellOffset(fromPosition.x + 1, fromPosition.y),
+        ),
       );
     } else {
       final toPosition = getCellOffset(to);
@@ -482,9 +513,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       _painter.cellSize.height,
       PlaceholderAlignment.middle,
     );
-    builder.pushStyle(
-      style.getTextStyle(textScaler: _painter.textScaler),
-    );
+    builder.pushStyle(style.getTextStyle(textScaler: _painter.textScaler));
     builder.addText(composingText);
 
     final paragraph = builder.build();

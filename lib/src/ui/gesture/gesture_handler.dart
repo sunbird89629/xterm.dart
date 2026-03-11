@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:xterm/core.dart';
 import 'package:xterm/src/core/mouse/button.dart';
 import 'package:xterm/src/core/mouse/button_state.dart';
 import 'package:xterm/src/terminal_view.dart';
@@ -24,6 +26,8 @@ class TerminalGestureHandler extends StatefulWidget {
     this.onTertiaryTapDown,
     this.onTertiaryTapUp,
     this.readOnly = false,
+    this.onDragEnd,
+    this.onDragCancel,
   });
 
   final TerminalViewState terminalView;
@@ -46,6 +50,10 @@ class TerminalGestureHandler extends StatefulWidget {
 
   final GestureTapUpCallback? onTertiaryTapUp;
 
+  final GestureDragEndCallback? onDragEnd;
+
+  final GestureDragCancelCallback? onDragCancel;
+
   final bool readOnly;
 
   @override
@@ -58,6 +66,9 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
   RenderTerminal get renderTerminal => terminalView.renderTerminal;
 
   DragStartDetails? _lastDragStartDetails;
+  CellOffset? _dragStartCellOffset;
+  DragUpdateDetails? _lastDragUpdateDetails;
+  Timer? _autoScrollTimer;
 
   LongPressStartDetails? _lastLongPressStartDetails;
 
@@ -75,8 +86,10 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
       onLongPressStart: onLongPressStart,
       onLongPressMoveUpdate: onLongPressMoveUpdate,
       // onLongPressUp: onLongPressUp,
-      onDragStart: onDragStart,
-      onDragUpdate: onDragUpdate,
+      onDragStart: widget.readOnly ? null : onDragStart,
+      onDragUpdate: widget.readOnly ? null : onDragUpdate,
+      onDragEnd: widget.readOnly ? null : onDragEnd,
+      onDragCancel: widget.readOnly ? null : onDragCancel,
       onDoubleTapDown: onDoubleTapDown,
     );
   }
@@ -178,23 +191,99 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
 
   void onDragStart(DragStartDetails details) {
     _lastDragStartDetails = details;
+    _dragStartCellOffset = renderTerminal.getCellOffset(details.localPosition);
 
-    final isBlockSelection = HardwareKeyboard.instance.isMetaPressed ||
-                             HardwareKeyboard.instance.isAltPressed;
+    final isBlockSelection =
+        HardwareKeyboard.instance.isMetaPressed ||
+        HardwareKeyboard.instance.isAltPressed;
 
     widget.terminalController.setSelectionMode(
       isBlockSelection ? SelectionMode.block : SelectionMode.line,
     );
-
-    details.kind == PointerDeviceKind.mouse
-        ? renderTerminal.selectCharacters(details.localPosition)
-        : renderTerminal.selectWord(details.localPosition);
   }
 
   void onDragUpdate(DragUpdateDetails details) {
-    renderTerminal.selectCharacters(
-      _lastDragStartDetails!.localPosition,
-      details.localPosition,
+    _lastDragUpdateDetails = details;
+    _updateSelectionForDrag(details.localPosition);
+    _checkAutoScroll(details.localPosition);
+  }
+
+  void _updateSelectionForDrag(Offset localPosition) {
+    if (_dragStartCellOffset == null) return;
+
+    // Use the absolute logical CellOffset cached at the start of the drag
+    // rather than the physical coordinates, so it stays pinned while scrolling.
+    renderTerminal.selectCharactersFromOffset(
+      _dragStartCellOffset!,
+      localPosition,
     );
+  }
+
+  void _checkAutoScroll(Offset localPosition) {
+    if (!renderTerminal.hasSize) return;
+
+    final scrollController = widget.terminalView.scrollController;
+    if (!scrollController.hasClients) return;
+
+    final rect = Offset.zero & renderTerminal.size;
+    const scrollZoneHeight = 30.0;
+    const maxScrollSpeed = 20.0;
+
+    double scrollDelta = 0;
+
+    if (localPosition.dy < rect.top + scrollZoneHeight) {
+      // Scroll up
+      final distance = rect.top + scrollZoneHeight - localPosition.dy;
+      final speedFactor = (distance / scrollZoneHeight).clamp(0.0, 1.0);
+      scrollDelta = -maxScrollSpeed * speedFactor;
+    } else if (localPosition.dy > rect.bottom - scrollZoneHeight) {
+      // Scroll down
+      final distance = localPosition.dy - (rect.bottom - scrollZoneHeight);
+      final speedFactor = (distance / scrollZoneHeight).clamp(0.0, 1.0);
+      scrollDelta = maxScrollSpeed * speedFactor;
+    }
+
+    if (scrollDelta != 0) {
+      if (_autoScrollTimer == null) {
+        _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 16), (
+          timer,
+        ) {
+          if (!scrollController.hasClients) {
+            _stopAutoScroll();
+            return;
+          }
+          final currentScroll = scrollController.offset;
+          final targetScroll = (currentScroll + scrollDelta).clamp(
+            0.0,
+            scrollController.position.maxScrollExtent,
+          );
+
+          if (currentScroll == targetScroll) return;
+
+          scrollController.jumpTo(targetScroll);
+
+          if (_lastDragUpdateDetails != null) {
+            _updateSelectionForDrag(_lastDragUpdateDetails!.localPosition);
+          }
+        });
+      }
+    } else {
+      _stopAutoScroll();
+    }
+  }
+
+  void onDragEnd(DragEndDetails details) {
+    _stopAutoScroll();
+    widget.onDragEnd?.call(details);
+  }
+
+  void onDragCancel() {
+    _stopAutoScroll();
+    widget.onDragCancel?.call();
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
   }
 }
