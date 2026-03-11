@@ -284,16 +284,24 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     if (to == null) {
       _controller.setSelection(
         _terminal.buffer.createAnchorFromOffset(fromPosition),
-        _terminal.buffer.createAnchorFromOffset(fromPosition),
+        _terminal.buffer.createAnchorFromOffset(
+            CellOffset(fromPosition.x + 1, fromPosition.y)),
       );
     } else {
-      var toPosition = getCellOffset(to);
-      if (toPosition.x >= fromPosition.x) {
-        toPosition = CellOffset(toPosition.x + 1, toPosition.y);
+      final toPosition = getCellOffset(to);
+      CellOffset begin, end;
+
+      if (toPosition.isBefore(fromPosition)) {
+        begin = toPosition;
+        end = CellOffset(fromPosition.x + 1, fromPosition.y);
+      } else {
+        begin = fromPosition;
+        end = CellOffset(toPosition.x + 1, toPosition.y);
       }
+
       _controller.setSelection(
-        _terminal.buffer.createAnchorFromOffset(fromPosition),
-        _terminal.buffer.createAnchorFromOffset(toPosition),
+        _terminal.buffer.createAnchorFromOffset(begin),
+        _terminal.buffer.createAnchorFromOffset(end),
       );
     }
   }

@@ -129,7 +129,8 @@ class TerminalPainter {
 
     final paint = Paint()
       ..color = color
-      ..strokeWidth = 1;
+      ..strokeWidth = 1
+      ..isAntiAlias = false;
 
     canvas.drawRect(
       Rect.fromPoints(offset, endOffset),
